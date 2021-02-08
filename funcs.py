@@ -160,3 +160,42 @@ def cell_repli_score(pairs_file:str, repli_file:str)->dict:
     early_replicate_fends = len(result_frame.query('value >0 '))  
 
     return {"repli_score":early_replicate_fends/annote_fends, "annote_ratio":annote_fends/raw_fends}
+def ray_cell_repli_score(pairs:pd.DataFrame,repli_chip:pd.DataFrame):
+    # cell_repli_score ray version, doesn't has any IO
+
+    # get legs from contacts
+    leg1, leg2 = pairs[["chr1","pos1"]], pairs[["chr2","pos2"]]
+    leg1.columns = leg2.columns = "chr pos".split()
+    legs = leg1.append(leg2)
+    # expand 10_000 each way
+    legs_lower, legs_upper = legs["pos"] - 10_000, legs["pos"] + 10_000
+    legs_lower[legs_lower < 0] = 0
+    legs_lower.name, legs_upper.name = "lower","upper"
+    legs = pd.concat([legs["chr"],legs_lower, legs_upper],axis=1)
+
+    # using pd.IntervalIndex to do searching
+    ## build index for reference
+    chip_range_index = pd.IntervalIndex.from_arrays(repli_chip["pos1"],repli_chip["pos2"])
+    chip_range_index.name = "range_index"
+    repli_chip_indexed = repli_chip.set_index([repli_chip["chr"], chip_range_index])
+    ## build index for target
+    legs_range_index = pd.IntervalIndex.from_arrays(legs["lower"],legs["upper"])
+    legs_range_index.name = "pos_range"
+    legs_indexed = legs.set_index([legs["chr"],legs_range_index])
+
+    # do calc(time consuming)
+    results = {}
+    for key, per_chr_legs in legs_indexed.groupby(level=0):
+        results[key] = chunck_repli_values(per_chr_legs, repli_chip_indexed) # return series
+
+    # tidy
+    result_frame = pd.DataFrame()
+    for key in results:
+        result_frame = result_frame.append(results[key].reset_index()[["chr",0]], ignore_index=True)
+    result_frame.columns = "chr value".split()
+
+    raw_fends = len(result_frame)
+    annote_fends = len(result_frame.dropna())
+    early_replicate_fends = len(result_frame.query('value >0 '))  
+
+    return {"repli_score":early_replicate_fends/annote_fends, "annote_ratio":annote_fends/raw_fends}
