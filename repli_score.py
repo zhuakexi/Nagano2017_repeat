@@ -11,12 +11,14 @@ reload(funcs)
 
 # OUTPUT:
 # repli_score.pkl
-
+import ray
+ray.init(address='auto',_redis_password='5241590000000000')
 Nagano_meta = pd.read_csv("Nagano.meta.csv")
-# ingest reference, get the working function
-mm10_repli_score = funcs.repli_score("mm10_repli_chip.wig")
+# remote version of working function
+f_cell_repli_score = ray.remote(funcs.cell_repli_score)
+res = [f_cell_repli_score.remote(file_name, "mm10_repli_chip.wig") for file_name in Nagano_meta["pairs_0"][0:2]]
+result = ray.get(res)
+ray.shutdown()
 
-all_repli_score = funcs.collectcollect(Nagano_meta.query('passed_qc == 1'), "cell_nm", "pairs_0", mm10_repli_score, 128)
-
-with open("out/all_repli_scores.pkl",'wb') as f:
-    pickle.dump(all_repli_score,f)
+with open("out/test.pkl",'wb') as f:
+    pickle.dump(result,f)

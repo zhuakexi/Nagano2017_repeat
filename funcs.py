@@ -154,7 +154,9 @@ def cell_repli_score(pairs_file:str, repli_file:str)->dict:
     for key in results:
         result_frame = result_frame.append(results[key].reset_index()[["chr",0]], ignore_index=True)
     result_frame.columns = "chr value".split()
-    using_contacts = (len(result_frame) - len(result_frame.dropna()))/ len(result_frame)
-    repli_score = result_frame.dropna()["value"].mean()  
 
-    return {"repli_score":repli_score, "using_contacts":using_contacts}
+    raw_fends = len(result_frame)
+    annote_fends = len(result_frame.dropna())
+    early_replicate_fends = len(result_frame.query('value >0 '))  
+
+    return {"repli_score":early_replicate_fends/annote_fends, "annote_ratio":annote_fends/raw_fends}
